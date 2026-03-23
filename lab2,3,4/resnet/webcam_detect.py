@@ -44,13 +44,22 @@ def parse_args() -> argparse.Namespace:
 		help="Device to run inference on.",
 	)
 	parser.add_argument(
-		"--conf-threshold",
+		"--scale-factor",
 		type=float,
-		default=1.1,
-		help=(
-			"Face detector minNeighbors value proxy: higher means stricter detection. "
-			"Mapped internally to int minNeighbors."
-		),
+		default=1.15,
+		help="Face detector scaleFactor (Haar cascade).",
+	)
+	parser.add_argument(
+		"--min-neighbors",
+		type=int,
+		default=5,
+		help="Face detector minNeighbors (higher is stricter).",
+	)
+	parser.add_argument(
+		"--padding",
+		type=float,
+		default=0.25,
+		help="Extra padding ratio around detected face box.",
 	)
 	return parser.parse_args()
 
@@ -76,11 +85,30 @@ def preprocess_face(face_bgr):
 	return face_tensor
 
 
+def padded_square_box(x, y, w, h, frame_w, frame_h, padding_ratio):
+	side = int(max(w, h) * (1.0 + padding_ratio))
+	cx = x + w // 2
+	cy = y + h // 2
+
+	x0 = max(0, cx - side // 2)
+	y0 = max(0, cy - side // 2)
+	x1 = min(frame_w, x0 + side)
+	y1 = min(frame_h, y0 + side)
+
+	# Keep square after clipping.
+	side = min(x1 - x0, y1 - y0)
+	x1 = x0 + side
+	y1 = y0 + side
+	return x0, y0, x1, y1
+
+
 def draw_landmarks(frame, box, preds):
 	x, y, w, h = box
 	points = preds.reshape(-1, 2)
 
 	for idx, (px, py) in enumerate(points):
+		px = float(max(0.0, min(1.0, px)))
+		py = float(max(0.0, min(1.0, py)))
 		lx = int(x + px * w)
 		ly = int(y + py * h)
 		cv2.circle(frame, (lx, ly), 3, (0, 255, 0), -1)
@@ -114,8 +142,6 @@ def main() -> None:
 	if not cap.isOpened():
 		raise RuntimeError(f"Cannot open webcam index {args.camera_index}.")
 
-	min_neighbors = max(3, int(round(args.conf_threshold * 4)))
-
 	print("Press 'q' to quit")
 	while True:
 		ok, frame = cap.read()
@@ -126,14 +152,33 @@ def main() -> None:
 		gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 		faces = face_cascade.detectMultiScale(
 			gray,
-			scaleFactor=1.2,
-			minNeighbors=min_neighbors,
+			scaleFactor=args.scale_factor,
+			minNeighbors=args.min_neighbors,
 			minSize=(80, 80),
 		)
 
+		if len(faces) == 0:
+			cv2.putText(
+				frame,
+				"No face detected",
+				(20, 30),
+				cv2.FONT_HERSHEY_SIMPLEX,
+				0.8,
+				(0, 0, 255),
+				2,
+				cv2.LINE_AA,
+			)
+
 		for (x, y, w, h) in faces:
-			x0, y0 = max(0, x), max(0, y)
-			x1, y1 = min(frame.shape[1], x + w), min(frame.shape[0], y + h)
+			x0, y0, x1, y1 = padded_square_box(
+				x,
+				y,
+				w,
+				h,
+				frame.shape[1],
+				frame.shape[0],
+				args.padding,
+			)
 			face_roi = frame[y0:y1, x0:x1]
 			if face_roi.size == 0:
 				continue
