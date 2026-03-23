@@ -1,0 +1,12 @@
+Training started at 2026-03-23 02:55:52
+Estimated time: 48.1 minutes
+Device: cuda
+Batch size: 32
+Num epochs: 3
+============================================================
+
+Batch 0/5065, Loss: 0.011966
+Batch 50/5065, Loss: 0.000889
+Batch 100/5065, Loss: 0.000602
+Batch 150/5065, Loss: 0.000543
+Batch 200/5065, Loss: 0.000424
