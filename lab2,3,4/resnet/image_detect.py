@@ -16,12 +16,16 @@ LANDMARK_NAMES = [
 ]
 
 # If you do not pass --input, this path will be used.
-DEFAULT_INPUT_IMAGE = "/home/tr1bo/Documents/8. 3B/F.CSM332 Гүн сургалт/DeepLearning/lab2,3,4/resnet/test.png"
-
+#DEFAULT_INPUT_IMAGE = "/home/tr1bo/Documents/8. 3B/F.CSM332 Гүн сургалт/DeepLearning/lab2,3,4/resnet/test.png"
+DEFAULT_INPUT_IMAGE = "/home/tr1bo/Documents/1. School/1. 3B/DeepLearning/lab2,3,4/resnet/img/tony.png"
 
 def parse_args() -> argparse.Namespace:
+    # default_checkpoint = (
+    #     "/home/tr1bo/Documents/8. 3B/F.CSM332 Гүн сургалт/DeepLearning/"
+    #     "lab2,3,4/resnet/checkpoints/resnet9_landmark_epoch2_loss0.0000.pt"
+    # )
     default_checkpoint = (
-        "/home/tr1bo/Documents/8. 3B/F.CSM332 Гүн сургалт/DeepLearning/"
+        "/home/tr1bo/Documents/1. School/1. 3B/DeepLearning/"
         "lab2,3,4/resnet/checkpoints/resnet9_landmark_epoch2_loss0.0000.pt"
     )
     parser = argparse.ArgumentParser(
