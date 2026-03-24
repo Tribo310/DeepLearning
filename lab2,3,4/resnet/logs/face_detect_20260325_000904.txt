@@ -1,0 +1,7 @@
+task=face_detect  device=cuda  epochs=5
+
+Epoch   1/5  train=0.033517  val=0.018526
+Epoch   2/5  train=0.015380  val=0.016617
+Epoch   3/5  train=0.010014  val=0.020698
+Epoch   4/5  train=0.007346  val=0.004965
+Epoch   5/5  train=0.005967  val=0.004543

@@ -1,0 +1,23 @@
+
+=======================================================
+  Single-batch overfit test — landmark
+=======================================================
+  batch shape : torch.Size([32, 3, 128, 128])  target shape : torch.Size([32, 10])
+  target min=0.3652  max=0.7110  mean=0.5529
+  device      : cuda
+  n_iters     : 2000
+  log file    : logs/overfit_landmark_20260325_010723.txt
+  iter    1  loss = 0.3652778
+  iter  200  loss = 0.0000430
+  iter  400  loss = 0.0000027
+  iter  600  loss = 0.0000009
+  iter  800  loss = 0.0000001
+  iter 1000  loss = 0.0000002
+  iter 1200  loss = 0.0000003
+  iter 1400  loss = 0.0000010
+  iter 1600  loss = 0.0000000
+  iter 1800  loss = 0.0001191
+  iter 2000  loss = 0.0000001
+
+  Final loss : 0.0000001  [PASS]
+

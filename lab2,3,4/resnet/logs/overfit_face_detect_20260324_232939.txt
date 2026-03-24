@@ -1,0 +1,16 @@
+
+=======================================================
+  Single-batch overfit test — face_detect
+=======================================================
+  batch shape : torch.Size([32, 3, 128, 128])  target shape : torch.Size([32, 4])
+  device      : cuda
+  n_iters     : 300
+  log file    : logs/overfit_face_detect_20260324_232939.txt
+  iter    1  loss = 0.6709076
+  iter   50  loss = 0.4018342
+  iter  100  loss = 0.3984838
+  iter  200  loss = 0.3951498
+  iter  300  loss = 0.3941076
+
+  Final loss : 0.3941076  [NOTE] loss not near 0 — check arch/data
+
