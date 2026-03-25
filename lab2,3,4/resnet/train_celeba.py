@@ -11,13 +11,15 @@ Usage:
 """
 
 import os
+import random
 import argparse
 import time
 import torch
 import torch.nn as nn
 import numpy as np
-from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision.transforms import Resize, ToTensor, Compose
+from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms import Resize, ToTensor, Compose, ColorJitter
+import torchvision.transforms.functional as TF
 from PIL import Image
 
 # ─────────────────────────────────────────────────────────────────
@@ -96,7 +98,8 @@ class ResNet9(nn.Module):
 # DATASETS
 # ─────────────────────────────────────────────────────────────────
 
-_transform = Compose([Resize((INPUT_SIZE, INPUT_SIZE)), ToTensor()])
+_base_transform = Compose([Resize((INPUT_SIZE, INPUT_SIZE)), ToTensor()])
+_jitter = ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05)
 
 
 class FaceDetectDataset(Dataset):
@@ -104,16 +107,20 @@ class FaceDetectDataset(Dataset):
     img_celeba + list_bbox_celeba.txt
     Target: [x1, y1, w, h] normalized to [0,1]
     """
-    def __init__(self, bbox_file: str, img_dir: str):
+    def __init__(self, bbox_file: str, img_dir: str, samples=None, augment: bool = False):
         self.img_dir = img_dir
-        self.samples = []
-        with open(bbox_file) as f:
-            lines = f.readlines()
-        for line in lines[2:]:          # skip count + header
-            p = line.split()
-            name = p[0]
-            x1, y1, w, h = float(p[1]), float(p[2]), float(p[3]), float(p[4])
-            self.samples.append((name, x1, y1, w, h))
+        self.augment = augment
+        if samples is not None:
+            self.samples = samples
+        else:
+            self.samples = []
+            with open(bbox_file) as f:
+                lines = f.readlines()
+            for line in lines[2:]:          # skip count + header
+                p = line.split()
+                name = p[0]
+                x1, y1, w, h = float(p[1]), float(p[2]), float(p[3]), float(p[4])
+                self.samples.append((name, x1, y1, w, h))
 
     def __len__(self):
         return len(self.samples)
@@ -121,11 +128,20 @@ class FaceDetectDataset(Dataset):
     def __getitem__(self, idx):
         name, x1, y1, w, h = self.samples[idx]
         img = Image.open(os.path.join(self.img_dir, name)).convert('RGB')
-        img_t = _transform(img)
-        bbox = torch.tensor(
-            [x1 / IMG_W, y1 / IMG_H, w / IMG_W, h / IMG_H],
-            dtype=torch.float32,
-        ).clamp(0.0, 1.0)   # some bboxes extend beyond image boundary
+
+        x1n = x1 / IMG_W
+        y1n = y1 / IMG_H
+        wn  = w  / IMG_W
+        hn  = h  / IMG_H
+
+        if self.augment:
+            img = _jitter(img)
+            if random.random() < 0.5:
+                img  = TF.hflip(img)
+                x1n  = 1.0 - x1n - wn  # mirror bbox x
+
+        img_t = _base_transform(img)
+        bbox = torch.tensor([x1n, y1n, wn, hn], dtype=torch.float32).clamp(0.0, 1.0)
         return img_t, bbox
 
 
@@ -133,17 +149,24 @@ class LandmarkDataset(Dataset):
     """
     img_align_celeba + list_landmarks_align_celeba.txt
     Target: [lx,ly, rx,ry, nx,ny, lmx,lmy, rmx,rmy] normalized to [0,1]
+
+    CelebA landmark order: left_eye, right_eye, nose, left_mouth, right_mouth
+    Horizontal flip swaps: left_eye↔right_eye, left_mouth↔right_mouth, and mirrors all x.
     """
-    def __init__(self, lm_file: str, img_dir: str):
+    def __init__(self, lm_file: str, img_dir: str, samples=None, augment: bool = False):
         self.img_dir = img_dir
-        self.samples = []
-        with open(lm_file) as f:
-            lines = f.readlines()
-        for line in lines[2:]:
-            p = line.split()
-            name   = p[0]
-            coords = list(map(float, p[1:]))    # 10 values
-            self.samples.append((name, coords))
+        self.augment = augment
+        if samples is not None:
+            self.samples = samples
+        else:
+            self.samples = []
+            with open(lm_file) as f:
+                lines = f.readlines()
+            for line in lines[2:]:
+                p = line.split()
+                name   = p[0]
+                coords = list(map(float, p[1:]))    # 10 values
+                self.samples.append((name, coords))
 
     def __len__(self):
         return len(self.samples)
@@ -151,9 +174,23 @@ class LandmarkDataset(Dataset):
     def __getitem__(self, idx):
         name, coords = self.samples[idx]
         img = Image.open(os.path.join(self.img_dir, name)).convert('RGB')
-        img_t = _transform(img)
+
         # even index = x → /IMG_W,  odd = y → /IMG_H
-        norm = [v / (IMG_W if i % 2 == 0 else IMG_H) for i, v in enumerate(coords)]
+        norm = np.array([v / (IMG_W if i % 2 == 0 else IMG_H) for i, v in enumerate(coords)],
+                        dtype=np.float32)
+
+        if self.augment:
+            img = _jitter(img)
+            if random.random() < 0.5:
+                img = TF.hflip(img)
+                # Mirror all x coordinates
+                norm[0::2] = 1.0 - norm[0::2]
+                # Swap left_eye (0,1) ↔ right_eye (2,3)
+                norm[[0, 1, 2, 3]] = norm[[2, 3, 0, 1]]
+                # Swap left_mouth (6,7) ↔ right_mouth (8,9)
+                norm[[6, 7, 8, 9]] = norm[[8, 9, 6, 7]]
+
+        img_t = _base_transform(img)
         lm = torch.tensor(norm, dtype=torch.float32).clamp(0.0, 1.0)
         return img_t, lm
 
@@ -338,7 +375,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Device : {device}')
 
-    # ── Dataset ──
+    # ── Dataset (no augment — used for overfit/time tests) ──
     if args.task == 'detect':
         dataset    = FaceDetectDataset(BBOX_FILE, IMG_CELEBA_DIR)
         model      = ResNet9(out_size=4)
@@ -373,12 +410,29 @@ def main():
                             shuffle=False, num_workers=0)
     estimate_training_time(model, est_loader, device, epochs=args.epochs)
 
-    # ── Full training ──
-    n_test  = int(0.10 * len(dataset))
-    n_val   = int(0.10 * len(dataset))
-    n_train = len(dataset) - n_val - n_test
-    train_set, val_set, test_set = random_split(dataset, [n_train, n_val, n_test])
-    print(f'Split  : train={n_train:,}  val={n_val:,}  test={n_test:,}')
+    # ── Split samples, create separate datasets with augment only for train ──
+    all_samples = dataset.samples
+    n = len(all_samples)
+    n_test  = int(0.10 * n)
+    n_val   = int(0.10 * n)
+    n_train = n - n_val - n_test
+
+    indices = list(range(n))
+    random.shuffle(indices)
+    train_samples = [all_samples[i] for i in indices[:n_train]]
+    val_samples   = [all_samples[i] for i in indices[n_train:n_train + n_val]]
+    test_samples  = [all_samples[i] for i in indices[n_train + n_val:]]
+
+    if args.task == 'detect':
+        train_set = FaceDetectDataset(BBOX_FILE, IMG_CELEBA_DIR, samples=train_samples, augment=True)
+        val_set   = FaceDetectDataset(BBOX_FILE, IMG_CELEBA_DIR, samples=val_samples,   augment=False)
+        test_set  = FaceDetectDataset(BBOX_FILE, IMG_CELEBA_DIR, samples=test_samples,  augment=False)
+    else:
+        train_set = LandmarkDataset(LANDMARK_FILE, IMG_ALIGN_CELEBA_DIR, samples=train_samples, augment=True)
+        val_set   = LandmarkDataset(LANDMARK_FILE, IMG_ALIGN_CELEBA_DIR, samples=val_samples,   augment=False)
+        test_set  = LandmarkDataset(LANDMARK_FILE, IMG_ALIGN_CELEBA_DIR, samples=test_samples,  augment=False)
+
+    print(f'Split  : train={n_train:,}  val={n_val:,}  test={n_test:,}  (augment=True for train)')
 
     train_loader = DataLoader(train_set, batch_size=args.batch_size,
                               shuffle=True,  num_workers=args.workers, pin_memory=True)

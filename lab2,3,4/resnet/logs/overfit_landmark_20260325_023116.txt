@@ -16,3 +16,8 @@
   iter 1200  loss = 0.0001632
   iter 1400  loss = 0.0000013
   iter 1600  loss = 0.0000002
+  iter 1800  loss = 0.0000000
+  iter 2000  loss = 0.0000001
+
+  Final loss : 0.0000001  [PASS]
+

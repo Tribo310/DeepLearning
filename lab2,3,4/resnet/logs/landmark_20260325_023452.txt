@@ -1,0 +1,22 @@
+task=landmark  device=cuda  epochs=20
+
+Epoch   1/20  train=0.001569  val=0.000278
+Epoch   2/20  train=0.000135  val=0.000085
+Epoch   3/20  train=0.000056  val=0.000050
+Epoch   4/20  train=0.000039  val=0.000026
+Epoch   5/20  train=0.000031  val=0.000021
+Epoch   6/20  train=0.000028  val=0.000021
+Epoch   7/20  train=0.000026  val=0.000026
+Epoch   8/20  train=0.000024  val=0.000020
+Epoch   9/20  train=0.000024  val=0.000015
+Epoch  10/20  train=0.000022  val=0.000015
+Epoch  11/20  train=0.000022  val=0.000014
+Epoch  12/20  train=0.000021  val=0.000015
+Epoch  13/20  train=0.000020  val=0.000014
+Epoch  14/20  train=0.000020  val=0.000014
+Epoch  15/20  train=0.000019  val=0.000013
+Epoch  16/20  train=0.000019  val=0.000013
+Epoch  17/20  train=0.000018  val=0.000012
+Epoch  18/20  train=0.000018  val=0.000013
+Epoch  19/20  train=0.000018  val=0.000012
+Epoch  20/20  train=0.000018  val=0.000013
