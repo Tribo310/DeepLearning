@@ -1,10 +1,12 @@
 import argparse
+import os
 from pathlib import Path
 
 import cv2
 import torch
 
 from resnet9 import ResNet9Landmark
+from train_celeba import ResNet9 as TrainCelebaResNet9
 
 
 LANDMARK_NAMES = [
@@ -15,19 +17,11 @@ LANDMARK_NAMES = [
     "right_mouth",
 ]
 
-# If you do not pass --input, this path will be used.
-#DEFAULT_INPUT_IMAGE = "/home/tr1bo/Documents/8. 3B/F.CSM332 Гүн сургалт/DeepLearning/lab2,3,4/resnet/test.png"
-DEFAULT_INPUT_IMAGE = "/home/tr1bo/Documents/1. School/1. 3B/DeepLearning/lab2,3,4/resnet/img/tony.png"
+SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_INPUT_IMAGE = str(SCRIPT_DIR / "img" / "jenny.png")
 
 def parse_args() -> argparse.Namespace:
-    # default_checkpoint = (
-    #     "/home/tr1bo/Documents/8. 3B/F.CSM332 Гүн сургалт/DeepLearning/"
-    #     "lab2,3,4/resnet/checkpoints/resnet9_landmark_epoch2_loss0.0000.pt"
-    # )
-    default_checkpoint = (
-        "/home/tr1bo/Documents/1. School/1. 3B/DeepLearning/"
-        "lab2,3,4/resnet/checkpoints/resnet9_landmark_epoch2_loss0.0000.pt"
-    )
+    default_checkpoint = str(SCRIPT_DIR / "checkpoints" / "landmark_best.pt")
     parser = argparse.ArgumentParser(
         description="Detect face landmarks on a single image with ResNet9."
     )
@@ -82,13 +76,20 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_model(checkpoint_path: str, device: torch.device) -> ResNet9Landmark:
+def load_model(checkpoint_path: str, device: torch.device):
     checkpoint = Path(checkpoint_path)
     if not checkpoint.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint}")
 
-    model = ResNet9Landmark(in_channels=3, num_landmarks=5)
     state_dict = torch.load(str(checkpoint), map_location=device)
+    keys = list(state_dict.keys())
+
+    # train_celeba.py checkpoint (encoder/head naming)
+    if any(k.startswith("encoder.") for k in keys):
+        model = TrainCelebaResNet9(out_size=10)
+    else:
+        model = ResNet9Landmark(in_channels=3, num_landmarks=5)
+
     model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
@@ -152,47 +153,16 @@ def main() -> None:
     if image is None:
         raise FileNotFoundError(f"Cannot read input image: {args.input}")
 
-    face_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    )
-    if face_cascade.empty():
-        raise RuntimeError("Failed to load Haar cascade for face detection.")
+    # Direct landmark detection on full image (no face detection).
+    h, w = image.shape[:2]
+    face_tensor = preprocess_face(image).to(device)
+    with torch.no_grad():
+        pred = model(face_tensor).squeeze(0).cpu().numpy()
 
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(
-        gray,
-        scaleFactor=args.scale_factor,
-        minNeighbors=args.min_neighbors,
-        minSize=(80, 80),
-    )
-
-    if len(faces) == 0:
-        print("No face detected.")
-    else:
-        print(f"Detected faces: {len(faces)}")
-
-    for (x, y, w, h) in faces:
-        x0, y0, x1, y1 = padded_square_box(
-            x,
-            y,
-            w,
-            h,
-            image.shape[1],
-            image.shape[0],
-            args.padding,
-        )
-        face_roi = image[y0:y1, x0:x1]
-        if face_roi.size == 0:
-            continue
-
-        face_tensor = preprocess_face(face_roi).to(device)
-        with torch.no_grad():
-            pred = model(face_tensor).squeeze(0).cpu().numpy()
-
-        cv2.rectangle(image, (x0, y0), (x1, y1), (255, 180, 0), 2)
-        draw_landmarks(image, (x0, y0, x1 - x0, y1 - y0), pred)
+    draw_landmarks(image, (0, 0, w, h), pred)
 
     cv2.imwrite(args.output, image)
+    print("Face detector: skipped (direct landmark mode)")
     print(f"Saved output image: {args.output}")
 
     if args.show:
