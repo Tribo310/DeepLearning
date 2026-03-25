@@ -1,0 +1,7 @@
+task=landmark  device=cuda  epochs=5
+
+Epoch   1/5  train=0.001538  val=0.000294
+Epoch   2/5  train=0.000167  val=0.000125
+Epoch   3/5  train=0.000065  val=0.000039
+Epoch   4/5  train=0.000047  val=0.000032
+Epoch   5/5  train=0.000038  val=0.000025
